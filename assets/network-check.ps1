@@ -46,7 +46,7 @@ function Finish-LayeroProbes($probes, $budgetMs) {
   }
 }
 Write-Host 'Layero: checking connection...'
-Save-LayeroLine ('Layero network diagnostics 1.1; UTC: ' + [DateTime]::UtcNow.ToString('o'))
+Save-LayeroLine ('Layero network diagnostics 1.2; UTC: ' + [DateTime]::UtcNow.ToString('o'))
 Save-LayeroLine 'Parallel quick snapshot. System DNS/proxy can differ from browser. ICMP routes have a 4s budget: partial outbound hops, NOT TCP443, TLS, packet-loss statistics or the return path. No uploads.'
 $script:routeTargets = @{}
 $probes = @()
@@ -58,6 +58,11 @@ foreach ($target in @('https://app.layero.ru/login','https://api.layero.ru/healt
   $probes += Start-LayeroProbe 'nslookup.exe' "-timeout=1 -retry=1 -type=AAAA $targetHost" $targetHost 'DNS AAAA'
   $format = '\nLAYERO_REMOTE_IP=%{remote_ip}\nHTTP=%{http_code} DNS=%{time_namelookup} CONNECT=%{time_connect} TLS=%{time_appconnect} FIRST_BYTE=%{time_starttransfer} TOTAL=%{time_total}\n'
   $probes += Start-LayeroProbe 'curl.exe' "-q -v --connect-timeout 3 --max-time 6 --output NUL --write-out `"$format`" $target" $targetHost 'HTTPS'
+}
+# Каждый вход Layero напрямую и geo-probe (вход, который выбрал DNS): IP, время, узел Edge.
+$entryFormat = '\nLAYERO_ENTRY=%{remote_ip} HTTP=%{http_code} CONNECT=%{time_connect} TLS=%{time_appconnect} TOTAL=%{time_total}\n'
+foreach ($entry in @('entry-yc','entry-ru6','entry-uz','geo-probe')) {
+  $probes += Start-LayeroProbe 'curl.exe' "-q -sS --connect-timeout 3 --max-time 6 --write-out `"$entryFormat`" https://$entry.layero.dev/__layero/network-info" "$entry.layero.dev" 'ENTRY'
 }
 Finish-LayeroProbes @($probes | Where-Object { $_ }) 7000
 $routes = @()

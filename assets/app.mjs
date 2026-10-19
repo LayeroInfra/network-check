@@ -1,4 +1,4 @@
-import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX} from './diagnostics.mjs?v=5.3.0';
+import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX} from './diagnostics.mjs?v=5.4.0';
 
 const $ = id => document.getElementById(id);
 let lastReport = null;
@@ -74,7 +74,12 @@ function renderRoute(report) {
   $('route-node').textContent = byDns.reachable ? shortNode(byDns.node) : '×';
   $('route-node-sub').textContent = byDns.reachable ? nodePlace(byDns.node) : '—';
   let mismatch = '';
-  if (byDns.verdict === 'failed') mismatch = 'Вход по DNS не открылся — сайты .dev у вас могут не работать. Скопируйте сводку в поддержку.';
+  const blocked = report.summary?.code === 'entries_blocked';
+  if (blocked) {
+    $('hero').className = 'hero failed'; $('verdict').textContent = 'Закрыто';
+    $('verdict-chip').textContent = 'все входы закрыты'; $('verdict-chip').className = 'chip failed';
+    mismatch = report.summary.text;
+  } else if (byDns.verdict === 'failed') mismatch = 'Вход по DNS не открылся — сайты .dev у вас могут не работать. Скопируйте сводку в поддержку.';
   else if ((byDns.verdict === 'ru' || byDns.verdict === 'abroad') && byDns.verdict !== byAddress.verdict)
     mismatch = 'DNS и адрес расходятся: так бывает с публичным DNS (1.1.1.1) или VPN.';
   $('mismatch').textContent = mismatch; $('mismatch').hidden = !mismatch;
@@ -126,6 +131,7 @@ async function run() {
     renderNetwork(lastReport.network);
     renderRoute(lastReport);
     entryTiles(lastReport.entries);
+    if (lastReport.entries.some(e => !e.reachable)) $('manual-panel').hidden = false;
     $('summary').textContent = lastReport.summary.text; $('summary').hidden = false;
     $('report-id').textContent = 'Проверка ' + lastReport.reportId;
     const answered = lastReport.checks.filter(c => checkState(c).answered === ATTEMPTS).length;
@@ -196,7 +202,9 @@ function showShared(report) {
   $('shared-banner').hidden = false;
   let when = report.finishedAt;
   try { when = new Date(report.finishedAt).toLocaleString('ru-RU', {dateStyle: 'medium', timeStyle: 'short'}); } catch (_) {}
-  $('shared-meta').textContent = when + ' · проверка ' + report.reportId;
+  const ctx = report.context || {};
+  const opened = ctx.openedOn ? (ctx.openedOn.endsWith('github.io') ? 'копия на GitHub' : ctx.openedOn) : null;
+  $('shared-meta').textContent = [when, ctx.timezone, ctx.language, opened ? 'открыто: ' + opened : null, 'проверка ' + report.reportId].filter(Boolean).join(' · ');
   renderNetwork(report.network); renderRoute(report); entryTiles(report.entries);
   createRows(); for (const check of report.checks) renderCheck(check);
   $('summary').textContent = report.summary.text; $('summary').hidden = false;

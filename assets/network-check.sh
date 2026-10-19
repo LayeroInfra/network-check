@@ -51,12 +51,25 @@ check_target() {
     printf 'traceroute_exit=%s\n' "$?"
   else printf 'Route not measured: no compatible tool.\n'; fi
 }
+# Каждый вход Layero напрямую и geo-probe (вход, который выбрал DNS): IP из DNS, код curl, время, узел Edge.
+check_entry() {
+  local name=$1 url=$2 out code
+  out=$(bounded 7 curl -q -sS --connect-timeout 3 --max-time 6 --write-out '\nLAYERO_ENTRY=%{remote_ip} HTTP=%{http_code} CONNECT=%{time_connect} TLS=%{time_appconnect} TOTAL=%{time_total}\n' "$url" 2>&1)
+  code=$?
+  printf 'ENTRY %s code=%s %s %s %s\n' "$name" "$code" "$(printf '%s\n' "$out" | sed -n 's/^LAYERO_ENTRY=/ip=/p' | tail -n 1)" "$(printf '%s' "$out" | grep -o '"entry":{[^}]*}' | head -n 1)" "$(printf '%s' "$out" | grep -o '"node":"[^"]*"' | head -n 1)"
+  printf '%s\n' "$out" | grep -E '^curl: |PROBE_TIME_LIMIT' | head -n 2 | sed 's/^/  /'
+}
 {
-  printf 'Layero network diagnostics 1.1\nUTC: '; date -u '+%Y-%m-%dT%H:%M:%SZ'
+  printf 'Layero network diagnostics 1.2\nUTC: '; date -u '+%Y-%m-%dT%H:%M:%SZ'
   printf 'OS: '; uname -s
   printf 'Parallel quick snapshot. DNS/terminal proxy may differ from browser; routes are limited partial outbound probes. No uploads.\n'
 } >"$report"
 bounded 5 curl -q -sS --connect-timeout 3 --max-time 4 'https://network-check.layero.app/__layero/network-info' >"$work_dir/network" 2>&1 & network_pid=$!
+entry_pids=(); entry_parts=()
+for entry in entry-yc entry-ru6 entry-uz geo-probe; do
+  check_entry "$entry" "https://$entry.layero.dev/__layero/network-info" >"$work_dir/$entry" 2>&1 & entry_pids+=("$!")
+  entry_parts+=("$work_dir/$entry")
+done
 pids=(); parts=()
 for target in 'https://app.layero.ru/login' 'https://api.layero.ru/health' 'https://status.layero.app/' 'https://docs.layero.ru/' 'https://layero.ru/'; do
   host=${target#https://}; host=${host%%/*}
@@ -65,6 +78,9 @@ for target in 'https://app.layero.ru/login' 'https://api.layero.ru/health' 'http
 done
 for probe_pid in "${pids[@]}"; do wait "$probe_pid"; done
 wait "$network_pid"
+for entry_pid in "${entry_pids[@]}"; do wait "$entry_pid"; done
+printf '\nLayero entries (geo-probe = entry chosen by DNS; entry 10.80.0.87 = ru-6, 10.90.0.10 = Tashkent, null = Yandex Cloud):\n' >>"$report"
+for part in "${entry_parts[@]}"; do cat "$part" >>"$report"; rm -f "$part"; done
 printf '\nObserved egress network:\n' >>"$report"
 cat "$work_dir/network" >>"$report"; rm -f "$work_dir/network"
 for part in "${parts[@]}"; do cat "$part" >>"$report"; rm -f "$part"; done

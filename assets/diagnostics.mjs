@@ -1,8 +1,8 @@
 // Measurement model. No DOM, cookies, account credentials or automatic upload.
-import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.3.0';
-import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.3.0';
+import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.4.0';
+import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.4.0';
 export {LAUNCH_COMMANDS, RU_ENTRY, ABROAD_ENTRY};
-export const VERSION = '5.3.0';
+export const VERSION = '5.4.0';
 export const ATTEMPTS = 2;
 export const TIMEOUT_MS = 12000;
 export const NETWORK_PATH = '/__layero/network-info';
@@ -212,7 +212,10 @@ export function checkState(check) {
       count === ATTEMPTS ? 'Ответы получены' : count > 0 ? 'Ответ получен один раз' : 'Ответы не получены'};
 }
 
-export function summarize(checks) {
+export function summarize(checks, entries = []) {
+  // Страница открылась (значит, интернет есть), а ни один вход Layero — нет.
+  if (entries.length && entries.every(e => !e.reachable)) return {code: 'entries_blocked',
+    text: 'Интернет работает — эта страница открылась. Но все входы Layero закрыты. Нажмите «Поделиться» и запустите команду ниже.'};
   const problems = checks.filter(c => checkState(c).tone !== 'success');
   if (!problems.length) return {code: 'no_failure_reproduced',
     text: 'Всё отвечает. Сбой не повторился.'};
@@ -266,7 +269,7 @@ export async function diagnose(options = {}) {
   report.recognition = {byAddress: classifyByAddress(report.network), byDns: await dnsPromise,
     rule: 'Abroad only when the country is known, not RU and the ASN is not in the RIPE NCC list for Russia; everything else is treated as Russia.'};
   report.entries = await entriesPromise;
-  report.summary = summarize(report.checks);
+  report.summary = summarize(report.checks, report.entries);
   report.finishedAt = new Date().toISOString();
   report.durationMs = Math.round(perf.now() - start);
   report.correlation = {queryParameter: '_layero_diagnostic',
@@ -293,6 +296,8 @@ export const reasonText = reason => REASON_TEXT[reason] || '';
 export function textSummary(report) {
   const n = report.network || {};
   const lines = ['Диагностика Layero ' + report.toolVersion, 'Проверка: ' + report.reportId, 'Время (UTC): ' + report.finishedAt,
+    'Браузер: ' + [report.client?.timezone || report.context?.timezone, report.client?.language || report.context?.language].filter(Boolean).join(' · ') +
+      ' · страница: ' + (hostOf(report.client?.diagnosticOrigin) || report.context?.openedOn || '?'),
     'Сеть: ' + [n.countryCode || 'страна ?', n.asn ? 'AS' + n.asn : 'ASN ?', n.provider || '', n.ip || 'IP ?'].filter(Boolean).join(' · '),
     'По адресу: ' + verdictText(report.recognition.byAddress.verdict) + ' (' + reasonText(report.recognition.byAddress.reason) + ')',
     'По DNS: ' + verdictText(report.recognition.byDns.verdict) + (report.recognition.byDns.reachable ? ' → ' + entryName(report.recognition.byDns.entryAddress) + ' → ' + (report.recognition.byDns.node || 'узел ?') : ''),
@@ -325,8 +330,12 @@ export function shareSnapshot(report) {
     entries: report.entries.map(e => [e.id, e.reachable ? 1 : 0, e.observation.durationMs, e.node, e.observation.outcome === 'timeout' ? 1 : 0]),
     checks: report.checks.map(c => [c.id, c.attempts.map(a => [OUTCOMES[a.outcome] || 'f', a.durationMs, a.httpStatus ?? null]),
       c.health ? [c.health.verified ? 1 : 0, c.health.healthy === true ? 1 : c.health.healthy === false ? 0 : null] : null]),
-    sum: report.summary.code};
+    sum: report.summary.code,
+    // Часовой пояс и язык подсказывают регион, когда все входы закрыты и IP неизвестен.
+    ctx: [report.client?.timezone || null, report.client?.language || null, hostOf(report.client?.diagnosticOrigin)]};
 }
+
+function hostOf(origin) { try { return new URL(origin).hostname; } catch (_) { return null; } }
 
 function toBase64Url(bytes) {
   let s = ''; for (const b of bytes) s += String.fromCharCode(b);
@@ -379,8 +388,12 @@ export async function decodeShare(fragment) {
       const health = Array.isArray(row[2]) ? {verified: row[2][0] === 1, healthy: row[2][1] === 1 ? true : row[2][1] === 0 ? false : null} : undefined;
       return {...target, attempts, ...(health ? {health} : {})};
     });
+    const ctx = Array.isArray(s.ctx) ? s.ctx : [];
+    const context = {timezone: typeof ctx[0] === 'string' && /^[A-Za-z0-9_+\/-]{1,64}$/.test(ctx[0]) ? ctx[0] : null,
+      language: typeof ctx[1] === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/.test(ctx[1]) ? ctx[1] : null,
+      openedOn: typeof ctx[2] === 'string' && /^[a-z0-9.-]{1,100}$/.test(ctx[2]) ? ctx[2] : null};
     return {shared: true, reportId: str(s.id, 64) || '?', finishedAt: str(s.at, 40) || '', toolVersion: str(s.tool, 20) || '?',
-      network, recognition: {byAddress, byDns}, entries, checks, summary: summarize(checks)};
+      network, recognition: {byAddress, byDns}, entries, checks, context, summary: summarize(checks, entries)};
   } catch (_) {
     return null;
   }

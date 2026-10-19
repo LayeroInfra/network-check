@@ -1,0 +1,207 @@
+/* Generated from design-system/src/index.css. Run scripts/sync-design-system.mjs. */
+:root {
+  color-scheme: light;
+
+  /* ── neutral scale (light) — warm vellum. Space-separated RGB channels so
+       Tailwind opacity modifiers (bg-neutral-900/10 etc.) work. ── */
+  --neutral-50: 255 255 255;
+  --neutral-100: 243 241 234;
+  --neutral-200: 233 231 221;
+  --neutral-300: 222 220 209;
+  --neutral-400: 156 154 146;
+  --neutral-500: 115 114 108;
+  --neutral-600: 61 61 58;
+  --neutral-700: 31 30 29;
+  --neutral-800: 20 20 19;
+  --neutral-900: 20 20 19;
+
+  /* ── legacy palette ── */
+  --bg: #fcfcfa;
+  --bg-card: #ffffff;
+  --bg-soft: #f3f1ea;
+  --bg-mute: #ecebe3;
+
+  --ink: #141413;
+  --onyx: #1f1e1d;
+  --graphite: #3d3d3a;
+  --dusty: #73726c;
+  --stone: #9c9a92;
+
+  --border: #dedcd1;
+  --border-soft: #e9e7dd;
+  --border-strong: #c9c6b6;
+
+  --leaf: #35aa60;
+  --azure: #dbeafe;
+
+  --shimmer-highlight: rgba(255, 255, 255, 0.75);
+
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+
+  /* ── shadcn semantic tokens (light) ── */
+  --background: #fcfcfa;
+  --foreground: #141413;
+  --card: #ffffff;
+  --card-foreground: #141413;
+  --popover: #ffffff;
+  --popover-foreground: #141413;
+  --primary: #141413;
+  --primary-foreground: #fafafa;
+  --secondary: #f3f1ea;
+  --secondary-foreground: #141413;
+  --muted: #f3f1ea;
+  --muted-foreground: #73726c;
+  --accent: #f3f1ea;
+  --accent-foreground: #141413;
+  /* Translucent hover overlay — over the white (#fff) card it composites to
+     exactly the warm hover shade #f3f1ea, and darkens any tinted/grey backdrop. */
+  --hover-overlay: rgba(135, 115, 45, 0.1);
+  --destructive: rgb(255 56 60);
+  --destructive-foreground: #fafafa;
+  --input: #dedcd1;
+  --ring: #141413;
+  --radius: 0.625rem;
+
+  /* ── Apple system colors (light), as space-separated RGB channels so
+       Tailwind opacity modifiers work (bg-red-500/10 etc.). Mapped onto the
+       red/orange/amber/green/emerald accent shades in tailwind.config. ── */
+  --c-red: 255 56 60;
+  --c-orange: 255 141 40;
+  --c-yellow: 255 204 0;
+  --c-green: 52 199 89;
+}
+.dark {
+  color-scheme: dark;
+
+  /* ── neutral scale (dark) — refined zinc, inverted lightness.
+       Stepped so surfaces stay distinct: bg < card < fill(100) < border(200). ── */
+  --neutral-50: 26 26 30;
+  --neutral-100: 46 46 53;
+  --neutral-200: 60 60 68;
+  --neutral-300: 76 76 85;
+  --neutral-400: 110 110 120;
+  --neutral-500: 155 155 166;
+  --neutral-600: 194 194 203;
+  --neutral-700: 226 226 231;
+  --neutral-800: 245 245 247;
+  --neutral-900: 255 255 255;
+
+  /* ── legacy palette (dark) ── */
+  --bg: #131316;
+  --bg-card: #1e1e22;
+  --bg-soft: #2e2e35;
+  --bg-mute: #3c3c44;
+
+  --ink: #f5f5f7;
+  --onyx: #e2e2e7;
+  --graphite: #c2c2cb;
+  --dusty: #9b9ba6;
+  --stone: #6e6e78;
+
+  --border: #3c3c44;
+  --border-soft: #2e2e35;
+  --border-strong: #4c4c55;
+
+  --leaf: #3fbe6e;
+  --azure: #1e3a5f;
+
+  --shimmer-highlight: rgba(255, 255, 255, 0.08);
+
+  /* ── shadcn semantic tokens (dark) ── */
+  --background: #131316;
+  --foreground: #f5f5f7;
+  --card: #1e1e22;
+  --card-foreground: #f5f5f7;
+  --popover: #25252b;
+  --popover-foreground: #f5f5f7;
+  --primary: #f5f5f7;
+  --primary-foreground: #18181b;
+  --secondary: #2e2e35;
+  --secondary-foreground: #f5f5f7;
+  --muted: #2e2e35;
+  --muted-foreground: #9b9ba6;
+  --accent: #2e2e35;
+  --accent-foreground: #f5f5f7;
+  /* Dark: a translucent light overlay → lands on the dark accent shade. */
+  --hover-overlay: rgba(255, 255, 255, 0.08);
+  --destructive: rgb(255 66 69);
+  --destructive-foreground: #fafafa;
+  --input: #3c3c44;
+  --ring: #d4d4d8;
+
+  /* ── Apple system colors (dark) ── */
+  --c-red: 255 66 69;
+  --c-orange: 255 146 48;
+  --c-yellow: 255 214 0;
+  --c-green: 48 209 88;
+}
+@media(prefers-color-scheme:dark){:root {
+  color-scheme: dark;
+
+  /* ── neutral scale (dark) — refined zinc, inverted lightness.
+       Stepped so surfaces stay distinct: bg < card < fill(100) < border(200). ── */
+  --neutral-50: 26 26 30;
+  --neutral-100: 46 46 53;
+  --neutral-200: 60 60 68;
+  --neutral-300: 76 76 85;
+  --neutral-400: 110 110 120;
+  --neutral-500: 155 155 166;
+  --neutral-600: 194 194 203;
+  --neutral-700: 226 226 231;
+  --neutral-800: 245 245 247;
+  --neutral-900: 255 255 255;
+
+  /* ── legacy palette (dark) ── */
+  --bg: #131316;
+  --bg-card: #1e1e22;
+  --bg-soft: #2e2e35;
+  --bg-mute: #3c3c44;
+
+  --ink: #f5f5f7;
+  --onyx: #e2e2e7;
+  --graphite: #c2c2cb;
+  --dusty: #9b9ba6;
+  --stone: #6e6e78;
+
+  --border: #3c3c44;
+  --border-soft: #2e2e35;
+  --border-strong: #4c4c55;
+
+  --leaf: #3fbe6e;
+  --azure: #1e3a5f;
+
+  --shimmer-highlight: rgba(255, 255, 255, 0.08);
+
+  /* ── shadcn semantic tokens (dark) ── */
+  --background: #131316;
+  --foreground: #f5f5f7;
+  --card: #1e1e22;
+  --card-foreground: #f5f5f7;
+  --popover: #25252b;
+  --popover-foreground: #f5f5f7;
+  --primary: #f5f5f7;
+  --primary-foreground: #18181b;
+  --secondary: #2e2e35;
+  --secondary-foreground: #f5f5f7;
+  --muted: #2e2e35;
+  --muted-foreground: #9b9ba6;
+  --accent: #2e2e35;
+  --accent-foreground: #f5f5f7;
+  /* Dark: a translucent light overlay → lands on the dark accent shade. */
+  --hover-overlay: rgba(255, 255, 255, 0.08);
+  --destructive: rgb(255 66 69);
+  --destructive-foreground: #fafafa;
+  --input: #3c3c44;
+  --ring: #d4d4d8;
+
+  /* ── Apple system colors (dark) ── */
+  --c-red: 255 66 69;
+  --c-orange: 255 146 48;
+  --c-yellow: 255 214 0;
+  --c-green: 48 209 88;
+}}
+@font-face{font-family:Geist;src:url('fonts/geist-latin.woff2') format('woff2');font-weight:100 900;font-display:swap;unicode-range:U+0000-00FF,U+2000-206F,U+20AC;}
+@font-face{font-family:Geist;src:url('fonts/geist-cyrillic.woff2') format('woff2');font-weight:100 900;font-display:swap;unicode-range:U+0400-052F,U+2DE0-2DFF,U+A640-A69F;}

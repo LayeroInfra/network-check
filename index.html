@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Диагностика Layero</title>
+<meta name="description" content="Как ваш запрос доходит до Layero: страна, вход, узел и ответы сервисов. Без входа и установки программ.">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/design-system.css">
+<style>
+:root{--s1:.25rem;--s2:.5rem;--s3:.75rem;--s4:1rem;--s5:1.25rem;--s6:1.5rem;--s8:2rem;--s10:2.5rem;--s12:3rem;--xs:.75rem;--sm:.875rem;--base:1rem;--lg:1.125rem;--sans:Geist,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;--mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;--w:68rem;--ok:rgb(var(--c-green));--warn:rgb(var(--c-orange));--bad:rgb(var(--c-red))}
+*{box-sizing:border-box}html,body{background:var(--background)}body{margin:0;color:var(--foreground);font:var(--sm)/1.5 var(--sans);letter-spacing:-.01em;-webkit-font-smoothing:antialiased}[hidden]{display:none!important}
+button{font:inherit}a{color:inherit;text-underline-offset:var(--s1)}:focus-visible{outline:2px solid var(--ring);outline-offset:var(--s1)}
+.shell{max-width:var(--w);margin:auto;padding-inline:var(--s6)}
+header{display:flex;align-items:center;justify-content:space-between;gap:var(--s4);padding-block:var(--s5)}
+.brand{display:flex;align-items:center;gap:var(--s3);text-decoration:none}.brand-logo{width:5.5rem;height:1.4rem;background:var(--foreground);mask:url('assets/logo.svg') center/contain no-repeat;-webkit-mask:url('assets/logo.svg') center/contain no-repeat}
+.tag{font:500 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted-foreground)}
+.links{display:flex;gap:var(--s5);font-size:var(--xs);color:var(--muted-foreground)}.links a{text-decoration:none}.links a:hover{color:var(--foreground)}
+/* Герой: тёмная плита с маршрутом */
+.hero{background:#0c0c0e;color:#f4f4f1;border-radius:24px;padding:var(--s10) var(--s8) var(--s8);position:relative;overflow:hidden}
+.hero::after{content:"";position:absolute;inset:auto -10% -60% 40%;height:120%;background:radial-gradient(closest-side,rgb(var(--c-green)/.18),transparent);pointer-events:none}
+.hero.abroad::after{background:radial-gradient(closest-side,rgb(var(--c-orange)/.22),transparent)}
+.hero.failed::after{background:radial-gradient(closest-side,rgb(var(--c-red)/.22),transparent)}
+.hero-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:var(--s6);position:relative;z-index:1}.hero-text{min-height:9.5rem}
+.kicker{font:500 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.1em;color:#9a9a94;margin:0 0 var(--s4)}
+h1{font-size:clamp(2.75rem,8vw,6rem);line-height:.92;letter-spacing:-.055em;font-weight:700;margin:0}
+.verdict-sub{margin:var(--s4) 0 0;color:#b9b9b2;font-size:var(--lg);display:flex;gap:var(--s3);align-items:center;min-height:2rem;white-space:nowrap;overflow:hidden}
+.chip{display:inline-flex;align-items:center;gap:var(--s2);font:600 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;border-radius:999px;padding:var(--s2) var(--s3);background:#26262a;color:#d8d8d2}
+.chip.ru{background:rgb(var(--c-green)/.18);color:#7ee0a0}.chip.abroad{background:rgb(var(--c-orange)/.2);color:#ffbf7a}.chip.failed{background:rgb(var(--c-red)/.22);color:#ff9a90}
+.run{height:3.25rem;min-width:13rem;justify-content:center;padding:0 var(--s8);border-radius:999px;border:0;background:#f4f4f1;color:#0c0c0e;font-weight:600;font-size:var(--base);cursor:pointer;display:inline-flex;align-items:center;gap:var(--s2);transition:transform .15s}
+.run:hover:not(:disabled){transform:translateY(-1px)}.run:disabled{opacity:.6;cursor:progress}.run svg{width:1rem;height:1rem}
+.route{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--s3);margin-top:var(--s10);position:relative;z-index:1}
+.hop{background:#18181b;border:1px solid #2a2a2e;border-radius:16px;padding:var(--s4) var(--s5);position:relative;min-height:7rem}
+.hop:not(:last-child)::after{content:"→";position:absolute;right:calc(-1 * var(--s3) - .35rem);top:50%;transform:translateY(-50%);color:#5d5d58;font-size:var(--lg);z-index:2}
+.hop dt{font:500 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:#8a8a84;margin-bottom:var(--s3)}
+.hop dd{margin:0}.hop .main{font-size:var(--lg);font-weight:600;letter-spacing:-.02em;color:#fafaf7;overflow-wrap:anywhere}
+.hop .sub{margin-top:var(--s1);font:var(--xs)/1.45 var(--mono);color:#9a9a94;overflow-wrap:anywhere}
+.progress-track{background:#26262a;height:3px;border-radius:3px;margin-top:var(--s6);overflow:hidden;position:relative;z-index:1}.progress-fill{height:100%;background:#f4f4f1;width:0;transition:width .2s}
+.status{display:flex;align-items:center;gap:var(--s2);margin-top:var(--s4);font-size:var(--xs);color:#9a9a94;position:relative;z-index:1}
+.dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:rgb(var(--neutral-400));flex:none}.dot.success{background:var(--ok)}.dot.warning{background:var(--warn)}.dot.negative{background:var(--bad)}.dot.running{background:#f4f4f1;animation:pulse 1.2s infinite}
+.mismatch{margin:var(--s4) 0 0;padding:var(--s3) var(--s4);border-radius:12px;background:rgb(var(--c-orange)/.16);color:#ffd3a3;font-size:var(--xs);position:relative;z-index:1}
+/* Блоки ниже */
+section.block{margin-top:var(--s10)}
+.block-head{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s4);margin-bottom:var(--s4);flex-wrap:wrap}
+h2{font-size:1.5rem;letter-spacing:-.035em;font-weight:700;margin:0}
+.badge{font:var(--xs)/1.5 var(--mono);color:var(--muted-foreground)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--s3)}
+.tile{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:var(--s5)}
+.tile .dot.running{background:var(--foreground)}.tile-top{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
+.tile-name{font-weight:600;font-size:var(--base);letter-spacing:-.02em}.tile-ms{font:600 1.75rem/1 var(--sans);letter-spacing:-.04em;margin-top:var(--s4)}.tile-ms small{font-size:var(--sm);font-weight:500;color:var(--muted-foreground);margin-left:2px}
+.tile-sub{margin-top:var(--s2);font:var(--xs)/1.5 var(--mono);color:var(--muted-foreground);overflow-wrap:anywhere}
+.scroll{overflow:auto;border:1px solid var(--border-soft);border-radius:16px;background:var(--card)}
+table{width:100%;border-collapse:collapse}th{font:500 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);text-align:left;padding:var(--s4)}td{padding:var(--s3) var(--s4);border-top:1px solid var(--border-soft)}
+.target-name{display:block;font-weight:600}.target-host{display:block;color:var(--muted-foreground);font:var(--xs)/1.5 var(--mono)}
+.result-status{display:flex;align-items:center;gap:var(--s2);white-space:nowrap}.timing{font:var(--xs)/1.5 var(--mono);white-space:nowrap;color:var(--graphite)}
+.facts{display:flex;gap:var(--s8);flex-wrap:wrap;margin:0}.facts dt{font:500 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);margin-bottom:var(--s2)}.facts dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.network-id,.report-id{font:var(--xs)/1.6 var(--mono);color:var(--muted-foreground);overflow-wrap:anywhere;margin:var(--s3) 0 0}.network-id:empty,.report-id:empty{display:none}
+.fine{font-size:var(--xs);color:var(--muted-foreground);margin:var(--s3) 0 0}
+.actions{display:flex;gap:var(--s3);flex-wrap:wrap}
+.button{height:2.75rem;display:inline-flex;align-items:center;gap:var(--s2);padding:0 var(--s5);border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--foreground);font-weight:500;cursor:pointer}.button:hover:not(:disabled){background:var(--accent)}.button:disabled{opacity:.45;cursor:not-allowed}.button svg{width:1rem;height:1rem}
+.notice{margin:var(--s4) 0 0;font-weight:600}
+.button.primary{background:var(--foreground);color:var(--background);border-color:var(--foreground)}.button.primary:hover:not(:disabled){background:var(--foreground);opacity:.88}
+.share-link{margin:var(--s3) 0 0;font:var(--xs)/1.5 var(--mono);background:var(--bg-soft);border-radius:12px;padding:var(--s3) var(--s4);overflow-wrap:anywhere;max-height:5.5rem;overflow:auto;user-select:all}
+.shared{display:flex;justify-content:space-between;align-items:center;gap:var(--s4);flex-wrap:wrap;margin-bottom:var(--s3);padding:var(--s3) var(--s5);border-radius:16px;background:rgb(var(--c-orange)/.14);font-size:var(--sm)}.shared a{font-weight:600}
+pre{font:var(--xs)/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg-soft);border-radius:12px;padding:var(--s4);margin:var(--s4) 0 0}
+.manual{margin-top:var(--s4);background:var(--card);border:1px solid rgb(var(--c-orange)/.5);border-radius:16px;padding:var(--s5)}
+.manual h2{font-size:var(--lg)}.manual-intro{color:var(--muted-foreground);margin:var(--s2) 0 var(--s4)}
+.os-switch{display:inline-flex;gap:var(--s1);padding:var(--s1);background:var(--muted);border-radius:999px;margin-bottom:var(--s3)}
+.os-switch button{border:0;border-radius:999px;background:transparent;color:var(--muted-foreground);padding:var(--s2) var(--s4);font-size:var(--xs);font-weight:500;cursor:pointer}.os-switch button[aria-pressed=true]{background:var(--card);color:var(--foreground);box-shadow:0 1px 3px rgb(0 0 0/.1)}
+.command-line{display:grid;grid-template-columns:minmax(0,1fr) 2.5rem;gap:var(--s3);align-items:center;background:var(--bg-soft);border-radius:12px;padding:var(--s2) var(--s2) var(--s2) var(--s4)}
+.command-line pre{margin:0;padding:var(--s2) 0;white-space:pre;overflow-x:auto;background:transparent}
+.copy-icon{display:grid;place-items:center;width:2.5rem;height:2.5rem;border:0;border-radius:999px;color:var(--muted-foreground);background:transparent;cursor:pointer}.copy-icon:hover{color:var(--foreground);background:var(--accent)}.copy-icon svg{width:1.1rem;height:1.1rem}.copy-icon .check-glyph{display:none}.copy-icon[data-copied=true] .copy-glyph{display:none}.copy-icon[data-copied=true] .check-glyph{display:block;color:var(--ok)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+footer{padding-block:var(--s10) var(--s8);color:var(--muted-foreground);font-size:var(--xs);display:flex;justify-content:space-between;gap:var(--s4);flex-wrap:wrap}
+@keyframes pulse{50%{opacity:.35}}
+@media(prefers-reduced-motion:reduce){.dot.running{animation:none}.progress-fill,.run{transition:none}}
+@media(max-width:860px){.route{grid-template-columns:repeat(2,minmax(0,1fr))}.hop:nth-child(2)::after{display:none}.tiles{grid-template-columns:1fr}}
+@media(max-width:560px){.shell{padding-inline:var(--s4)}.hero{padding:var(--s8) var(--s5) var(--s6);border-radius:20px}.route{grid-template-columns:1fr 1fr;gap:var(--s2);margin-top:var(--s6)}.hop{min-height:0;padding:var(--s3) var(--s4)}.hop::after{display:none}.hop .main{font-size:var(--base)}.hero-top{grid-template-columns:1fr}.hero-text{min-height:0}.run{width:100%;order:-1}.links{display:none}.actions{flex-direction:column}.button{justify-content:center}}
+@media print{.hero{background:none;color:inherit;border:1px solid #ccc}.run,.actions,.manual{display:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header><a class="brand" href="https://layero.ru" aria-label="Layero"><span class="brand-logo" aria-hidden="true"></span><span class="tag">network-check</span></a><nav class="links" aria-label="Ссылки"><a href="https://status.layero.app/" target="_blank" rel="noopener">Статус</a><a href="https://docs.layero.ru/" target="_blank" rel="noopener">Документация</a></nav></header>
+<main>
+<div class="shared" id="shared-banner" hidden><span><b>Результат по ссылке</b> · <span id="shared-meta"></span></span><a href="./" id="own-check">Проверить своё подключение →</a></div>
+<section class="hero" id="hero" aria-label="Управление проверкой">
+<div class="hero-top">
+<div class="hero-text"><p class="kicker">Как вы видите Layero</p><h1 id="verdict">Проверим?</h1><p class="verdict-sub"><span class="chip" id="verdict-chip" hidden></span><span id="by-address">Страна, вход, узел, сервисы.</span></p></div>
+<button class="run" id="run"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span id="run-label">Проверить</span></button>
+</div>
+<dl class="route" aria-label="Маршрут запроса">
+<div class="hop"><dt>Вы</dt><dd><div class="main" id="country">—</div><div class="sub" id="provider">—</div></dd></div>
+<div class="hop"><dt>DNS</dt><dd><div class="main" id="by-dns">—</div><div class="sub" id="dns-sub">куда ведут сайты .dev</div></dd></div>
+<div class="hop"><dt>Вход</dt><dd><div class="main" id="route-entry">—</div><div class="sub" id="route-entry-sub">—</div></dd></div>
+<div class="hop"><dt>Узел</dt><dd><div class="main" id="route-node">—</div><div class="sub" id="route-node-sub">—</div></dd></div>
+</dl>
+<p class="mismatch" id="mismatch" hidden></p>
+<div class="progress-track" id="progress-track" hidden><div class="progress-fill" id="progress-fill"></div></div>
+<div class="status" role="status" aria-live="polite"><span id="state-dot" class="dot" aria-hidden="true"></span><span id="progress">Без входа и установки программ.</span></div>
+</section>
+<section class="manual" id="manual-panel" aria-labelledby="manual-title" hidden>
+<h2 id="manual-title">Не открывается? Запустите у себя</h2>
+<p class="manual-intro" id="command-help"></p>
+<div class="os-switch" role="group" aria-label="Операционная система"><button id="os-unix" aria-pressed="true">macOS / Linux</button><button id="os-windows" aria-pressed="false">Windows</button></div>
+<div class="command-line"><pre id="manual-command"></pre><button class="copy-icon" id="copy-command" aria-label="Скопировать команду" title="Скопировать команду"><svg class="copy-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg><svg class="check-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m5 12 4 4L19 6"/></svg></button></div>
+<span class="sr-only" id="copy-feedback" role="status" aria-live="polite"></span>
+</section>
+<section class="block" aria-labelledby="entries-title">
+<div class="block-head"><h2 id="entries-title">Входы</h2><span class="badge">каждый напрямую</span></div>
+<div class="tiles" id="entries"></div>
+</section>
+<section class="block" aria-labelledby="results-title">
+<div class="block-head"><h2 id="results-title">Сервисы</h2><span class="badge" id="count">5 адресов · по 2 запроса</span></div>
+<div class="scroll"><table><thead><tr><th scope="col">Сервис</th><th scope="col">Ответ</th><th scope="col">Время</th></tr></thead><tbody id="results"></tbody></table></div>
+<p class="notice" id="summary" role="status" hidden></p>
+</section>
+<section class="block" aria-label="Ваше подключение">
+<div class="block-head"><h2>Для поддержки</h2></div>
+<div class="actions"><button class="button primary" id="share" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>Поделиться результатом</button><button class="button" id="copy-summary" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>Скопировать сводку</button><button class="button" id="download" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M5 15v5h14v-5"/></svg>Скачать JSON</button></div>
+<p class="share-link" id="share-link" hidden></p>
+<p class="network-id" id="network-id"></p>
+<p class="report-id" id="report-id"></p>
+<p class="fine">Страна и сеть — по <a href="https://db-ip.com" target="_blank" rel="noopener noreferrer">DB-IP Lite</a>, примерно. С VPN видна сеть VPN.</p>
+<pre id="report" hidden></pre>
+</section>
+<noscript><p>Нужен JavaScript.</p></noscript>
+</main>
+<footer><span>Layero · network-check</span><span>Только про ваше подключение</span></footer>
+</div>
+<script type="module" src="assets/app.mjs?v=5.3.0"></script>
+</body>
+</html>

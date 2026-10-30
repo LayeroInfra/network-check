@@ -124,8 +124,8 @@ function resolverMismatch(report) {
   const toRu = s.decision.entry === 'ru6';
   if (toRu && report.recognition.byAddress.verdict === 'abroad') {
     return 'Ваш DNS-сервер — ' + (s.resolver?.provider || s.resolver?.ip) + ' (' + countryName(s.ecs ? s.ecs.country : s.resolver?.country) + '). ' +
-      'По нему GeoDNS считает вас Россией и ведёт в Москву, а трафик выходит через ' + countryName(n.countryCode) +
-      (n.provider ? ' (' + n.provider + ')' : '') + ' — так бывает с VPN, который не заворачивает DNS. ' +
+      'По нему GeoDNS считает вас Россией и ведёт в Москву, а трафик выходит в интернет в другой стране: ' + countryName(n.countryCode) +
+      (n.provider ? ' (' + n.provider + ')' : '') + '. Так бывает с VPN, который пускает DNS мимо себя. ' +
       (report.entries?.find(e => e.id === 'ru6')?.reachable === false ? 'Из вашей сети вход в Москве закрыт — поэтому сервисы не открываются.' : '');
   }
   if (!toRu && report.recognition.byAddress.verdict === 'ru') {

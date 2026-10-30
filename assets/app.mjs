@@ -1,4 +1,4 @@
-import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX} from './diagnostics.mjs?v=5.4.0';
+import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX, entryText, hostText, reasonText} from './diagnostics.mjs?v=5.5.0';
 
 const $ = id => document.getElementById(id);
 let lastReport = null;
@@ -82,8 +82,56 @@ function renderRoute(report) {
   } else if (byDns.verdict === 'failed') mismatch = 'Вход по DNS не открылся — сайты .dev у вас могут не работать. Скопируйте сводку в поддержку.';
   else if ((byDns.verdict === 'ru' || byDns.verdict === 'abroad') && byDns.verdict !== byAddress.verdict)
     mismatch = 'DNS и адрес расходятся: так бывает с публичным DNS (1.1.1.1) или VPN.';
+  mismatch = (!blocked && resolverMismatch(report)) || mismatch;
   $('mismatch').textContent = mismatch; $('mismatch').hidden = !mismatch;
   $('network-id').textContent = [n.ip || 'IP ?', n.asn ? 'AS' + n.asn : null, n.node ? 'эта страница: ' + entryName(n.entryAddress) + ' → ' + shortNode(n.node) : null].filter(Boolean).join(' · ');
+}
+
+function countryName(code) {
+  if (!code) return 'страна ?';
+  try { return new Intl.DisplayNames(['ru'], {type: 'region'}).of(code); } catch (_) { return code; }
+}
+
+// Какой DNS-сервер спросил наше имя и куда его по правилу отправляет GeoDNS.
+function renderResolver(report) {
+  const r = report.dnsResolver;
+  $('resolver-block').hidden = !r;
+  if (!r) return;
+  $('resolvers').replaceChildren();
+  const first = r.seen?.[0];
+  $('dns-sub').textContent = first ? (first.resolver?.provider || first.resolver?.ip || 'DNS-сервер') + ' · ' + (first.ecs ? 'подсеть ' + (first.ecs.country || '?') : countryName(first.resolver?.country)) : 'куда ведут сайты';
+  if (r.status !== 'found') {
+    $('resolver-note').textContent = r.status === 'unreachable' ? 'Не узнали: ни один вход Layero не открылся.' : 'Наш сервер имён запроса не получил — DNS мог ответить из кэша или не дошёл до нас.';
+    return;
+  }
+  for (const s of r.seen) {
+    const tile = el('div', 'tile');
+    const top = el('div', 'tile-top');
+    const tone = s.decision.entry === 'uz' ? 'success' : 'warning';
+    top.append(el('span', 'tile-name', s.resolver?.provider || 'DNS-сервер'), statusCell(tone, entryText(s.decision.entry)));
+    tile.append(top, el('div', 'tile-ms', countryName(s.ecs ? s.ecs.country : s.resolver?.country)),
+      el('div', 'tile-sub', 'сервер ' + hostText(s.resolver) + (s.ecs ? ' · передал вашу подсеть ' + hostText({...s.ecs, ip: null}) : ' · вашу подсеть не передал')),
+      el('div', 'tile-sub', (s.ecs ? 'по подсети: ' : 'по DNS-серверу: ') + reasonText(s.decision.reason)));
+    $('resolvers').append(tile);
+  }
+  $('resolver-note').textContent = r.seen.length > 1 ? 'Сервер спрашивал с нескольких адресов — вход может меняться от запроса к запросу.' : '';
+}
+
+function resolverMismatch(report) {
+  const r = report.dnsResolver; const n = report.network || {};
+  const s = r?.status === 'found' ? r.seen[0] : null;
+  if (!s) return '';
+  const toRu = s.decision.entry === 'ru6';
+  if (toRu && report.recognition.byAddress.verdict === 'abroad') {
+    return 'Ваш DNS-сервер — ' + (s.resolver?.provider || s.resolver?.ip) + ' (' + countryName(s.ecs ? s.ecs.country : s.resolver?.country) + '). ' +
+      'По нему GeoDNS считает вас Россией и ведёт в Москву, а трафик выходит через ' + countryName(n.countryCode) +
+      (n.provider ? ' (' + n.provider + ')' : '') + ' — так бывает с VPN, который не заворачивает DNS. ' +
+      (report.entries?.find(e => e.id === 'ru6')?.reachable === false ? 'Из вашей сети вход в Москве закрыт — поэтому сервисы не открываются.' : '');
+  }
+  if (!toRu && report.recognition.byAddress.verdict === 'ru') {
+    return 'Ваш DNS-сервер — ' + (s.resolver?.provider || s.resolver?.ip) + ' (' + countryName(s.resolver?.country) + ') не передаёт вашу подсеть, поэтому GeoDNS ведёт вас как иностранца в Ташкент.';
+  }
+  return '';
 }
 
 function renderNetwork(network) {
@@ -101,6 +149,7 @@ function resetRoute(text) {
   for (const id of ['by-dns', 'route-entry', 'route-node']) $(id).textContent = '…';
   $('route-entry-sub').textContent = '—'; $('route-node-sub').textContent = '—';
   $('by-address').textContent = 'Страна, вход, узел, сервисы.';
+  $('resolver-block').hidden = true; $('dns-sub').textContent = 'куда ведут сайты';
 }
 
 async function run() {
@@ -130,6 +179,7 @@ async function run() {
     }});
     renderNetwork(lastReport.network);
     renderRoute(lastReport);
+    renderResolver(lastReport);
     entryTiles(lastReport.entries);
     if (lastReport.entries.some(e => !e.reachable)) $('manual-panel').hidden = false;
     $('summary').textContent = lastReport.summary.text; $('summary').hidden = false;
@@ -205,7 +255,7 @@ function showShared(report) {
   const ctx = report.context || {};
   const opened = ctx.openedOn ? (ctx.openedOn.endsWith('github.io') ? 'копия на GitHub' : ctx.openedOn) : null;
   $('shared-meta').textContent = [when, ctx.timezone, ctx.language, opened ? 'открыто: ' + opened : null, 'проверка ' + report.reportId].filter(Boolean).join(' · ');
-  renderNetwork(report.network); renderRoute(report); entryTiles(report.entries);
+  renderNetwork(report.network); renderRoute(report); renderResolver(report); entryTiles(report.entries);
   createRows(); for (const check of report.checks) renderCheck(check);
   $('summary').textContent = report.summary.text; $('summary').hidden = false;
   $('report-id').textContent = 'Проверка ' + report.reportId + ' · версия ' + report.toolVersion;

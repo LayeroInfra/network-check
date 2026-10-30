@@ -1,8 +1,8 @@
 // Measurement model. No DOM, cookies, account credentials or automatic upload.
-import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.4.0';
-import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.4.0';
+import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.5.0';
+import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.5.0';
 export {LAUNCH_COMMANDS, RU_ENTRY, ABROAD_ENTRY};
-export const VERSION = '5.4.0';
+export const VERSION = '5.5.0';
 export const ATTEMPTS = 2;
 export const TIMEOUT_MS = 12000;
 export const NETWORK_PATH = '/__layero/network-info';
@@ -77,6 +77,65 @@ export async function checkEntries(reportId, options = {}) {
     ...entryInfo(await measure(entry.url, reportId + '.entry-' + entry.id + '.1', {...options, mode: 'cors', readJson: true}))})));
 }
 
+// ── Какой DNS-сервер спросил наше имя ────────────────────────────────────
+// GeoDNS выбирает вход не по адресу посетителя, а по тому, кто его спросил:
+// по DNS-серверу или по подсети клиента, если сервер её передал (ECS).
+// Браузер этого не показывает, поэтому страница запрашивает случайное имя в
+// зоне dnsseen.layero.app — у неё свои серверы имён на CoreVM и в Ташкенте,
+// они записывают, кто спросил, и разбирают по тому же правилу, что и GeoDNS.
+// Запись забирается через любой открывшийся вход: /__layero/dns-seen?t=…
+export const DNS_SEEN_ZONE = 'dnsseen.layero.app';
+export const DNS_SEEN_PATH = '/__layero/dns-seen';
+const ENTRY_KEYS = ['ru6', 'uz'];
+const REASONS = ['country_unknown', 'country_ru', 'asn_ru', 'country_abroad'];
+
+function dnsToken() {
+  const bytes = new Uint8Array(16);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => (b % 36).toString(36)).join('') + Date.now().toString(36).slice(-6);
+}
+
+function cleanHost(x) {
+  if (!x || typeof x !== 'object') return null;
+  return {ip: typeof x.ip === 'string' && /^[0-9a-f:.]{2,45}$/i.test(x.ip) ? x.ip : null,
+    country: typeof x.country === 'string' && /^[A-Z]{2}$/.test(x.country) ? x.country : null,
+    asn: Number.isInteger(x.asn) && x.asn > 0 && x.asn <= 4294967295 ? x.asn : null,
+    provider: typeof x.provider === 'string' ? x.provider.slice(0, 80) : null,
+    ...(typeof x.subnet === 'string' && /^[0-9a-f:.]{2,45}\/\d{1,3}$/i.test(x.subnet) ? {subnet: x.subnet} : {})};
+}
+
+export function cleanResolverRow(row) {
+  const d = row?.decision || {};
+  return {resolver: cleanHost(row?.resolver), ecs: row?.ecs ? cleanHost(row.ecs) : null,
+    basis: row?.basis === 'ecs' ? 'ecs' : 'resolver',
+    decision: {entry: ENTRY_KEYS.includes(d.entry) ? d.entry : null, reason: REASONS.includes(d.reason) ? d.reason : null},
+    server: typeof row?.server === 'string' ? row.server.slice(0, 40) : null};
+}
+
+export async function dnsResolver(reportId, entries, options = {}) {
+  const token = options.dnsToken || dnsToken();
+  // Ответ «нет такого имени» приходит сразу; сам запрос нам и нужен.
+  await measure('https://' + token + '.' + DNS_SEEN_ZONE + '/', reportId + '.dns-seen-trigger',
+    {...options, timeoutMs: 5000});
+  const sources = [];
+  if (isLayeroOrigin(options.origin || globalThis.location?.origin)) sources.push(new URL(DNS_SEEN_PATH, options.origin || globalThis.location.origin).href);
+  for (const id of ['uz', 'ru6', 'yc']) {
+    const e = entries.find(x => x.id === id && x.reachable);
+    if (e) sources.push(new URL(DNS_SEEN_PATH, e.url).href);
+  }
+  if (!sources.length) return {status: 'unreachable', token, seen: []};
+  for (const url of sources) {
+    const u = new URL(url); u.searchParams.set('t', token);
+    const result = await measure(u.href, reportId + '.dns-seen.1', {...options, mode: 'cors', readJson: true, timeoutMs: 10000});
+    const data = result.body;
+    if (result.outcome !== 'response_received' || result.httpStatus !== 200 || data?.schemaVersion !== 1) continue;
+    const seen = (Array.isArray(data.seen) ? data.seen : []).slice(0, 4).map(cleanResolverRow);
+    return {status: seen.length ? 'found' : 'not_seen', token, seen, tashkentInDns: data.tashkentInDns !== false,
+      via: u.hostname};
+  }
+  return {status: 'unreachable', token, seen: []};
+}
+
 export async function dnsDecision(reportId, options = {}) {
   const info = entryInfo(await measure(GEO_PROBE_URL, reportId + '.geo-probe.1', {...options, mode: 'cors', readJson: true}));
   const verdict = !info.reachable ? 'failed' : ENTRY_SIGNATURES.ru.includes(info.entryAddress) ? 'ru' :
@@ -95,7 +154,8 @@ export const LIMITATIONS = Object.freeze([
   'Each entry is measured over one browser connection; the balancer spreads connections, not requests, so one run shows one Edge node per entry.',
   'Egress IP is observed at the diagnostic host. Split VPN/proxy routing may use different egress networks for other targets.',
   'No browser-only test can report failures from clients unable to load this diagnostic site.',
-  'The DNS verdict reflects the resolver this browser used at the time of the check; another device, VPN state or resolver may get a different entry. Resolver answers are cached for up to 10 seconds.'
+  'The DNS verdict reflects the resolver this browser used at the time of the check; another device, VPN state or resolver may get a different entry. Resolver answers are cached for up to 10 seconds.',
+  'DNS server identity comes from our own name servers of dnsseen.layero.app with DB-IP Lite; Bunny GeoDNS uses its own GeoIP database, so country or ASN may differ. A resolver may spread queries over several egress addresses.'
 ]);
 
 export function clientCommands() {
@@ -269,6 +329,7 @@ export async function diagnose(options = {}) {
   report.recognition = {byAddress: classifyByAddress(report.network), byDns: await dnsPromise,
     rule: 'Abroad only when the country is known, not RU and the ASN is not in the RIPE NCC list for Russia; everything else is treated as Russia.'};
   report.entries = await entriesPromise;
+  report.dnsResolver = await dnsResolver(id, report.entries, {...options, origin, perf});
   report.summary = summarize(report.checks, report.entries);
   report.finishedAt = new Date().toISOString();
   report.durationMs = Math.round(perf.now() - start);
@@ -289,6 +350,20 @@ export function serializeReport(report) { return JSON.stringify(report, null, 2)
 const VERDICT_TEXT = {ru: 'Россия', abroad: 'не Россия', failed: 'не удалось', unknown: 'не определено'};
 const REASON_TEXT = {country_unknown: 'страна не определена — считаем Россией', country_ru: 'страна сети — Россия',
   asn_ru: 'сеть зарегистрирована в России', country_abroad: 'страна сети не Россия, сеть не российская'};
+const ENTRY_TEXT = {ru6: 'вход в России', uz: 'зарубежный вход'};
+export const entryText = entry => ENTRY_TEXT[entry] || 'вход ?';
+export function hostText(h) {
+  if (!h) return '?';
+  return [h.ip || h.subnet, h.country, h.asn ? 'AS' + h.asn : null, h.provider].filter(Boolean).join(' · ');
+}
+export function resolverLines(r) {
+  if (!r) return [];
+  if (r.status === 'unreachable') return ['DNS-сервер: не узнали — ни один вход не открылся'];
+  if (r.status === 'not_seen') return ['DNS-сервер: наш сервер имён запроса не получил'];
+  return r.seen.map(s => 'DNS-сервер: ' + hostText(s.resolver) + (s.ecs ? ' · передал подсеть ' + hostText({...s.ecs, ip: null}) : ' · подсеть не передал') +
+    ' → ' + entryText(s.decision.entry) + ' (' + reasonText(s.decision.reason) + (s.ecs ? ', по подсети' : ', по DNS-серверу') + ')');
+}
+
 export const verdictText = verdict => VERDICT_TEXT[verdict] || VERDICT_TEXT.unknown;
 export const reasonText = reason => REASON_TEXT[reason] || '';
 
@@ -301,8 +376,9 @@ export function textSummary(report) {
     'Сеть: ' + [n.countryCode || 'страна ?', n.asn ? 'AS' + n.asn : 'ASN ?', n.provider || '', n.ip || 'IP ?'].filter(Boolean).join(' · '),
     'По адресу: ' + verdictText(report.recognition.byAddress.verdict) + ' (' + reasonText(report.recognition.byAddress.reason) + ')',
     'По DNS: ' + verdictText(report.recognition.byDns.verdict) + (report.recognition.byDns.reachable ? ' → ' + entryName(report.recognition.byDns.entryAddress) + ' → ' + (report.recognition.byDns.node || 'узел ?') : ''),
-    'Эта страница: ' + entryName(n.entryAddress) + ' → ' + (n.node || 'узел ?'),
-    'Входы:'];
+    'Эта страница: ' + entryName(n.entryAddress) + ' → ' + (n.node || 'узел ?')];
+  for (const line of resolverLines(report.dnsResolver)) lines.push(line);
+  lines.push('Входы:');
   for (const e of report.entries) lines.push('  ' + e.name + ' ' + e.address + ': ' +
     (e.reachable ? 'открывается, ' + e.observation.durationMs + ' мс, ' + (e.node || 'узел ?') : 'не открывается (' + e.observation.outcome + ')'));
   lines.push('Сервисы:');
@@ -330,6 +406,9 @@ export function shareSnapshot(report) {
     entries: report.entries.map(e => [e.id, e.reachable ? 1 : 0, e.observation.durationMs, e.node, e.observation.outcome === 'timeout' ? 1 : 0]),
     checks: report.checks.map(c => [c.id, c.attempts.map(a => [OUTCOMES[a.outcome] || 'f', a.durationMs, a.httpStatus ?? null]),
       c.health ? [c.health.verified ? 1 : 0, c.health.healthy === true ? 1 : c.health.healthy === false ? 0 : null] : null]),
+    rs: report.dnsResolver ? [report.dnsResolver.status, ...report.dnsResolver.seen.map(s => [
+      s.resolver?.ip ?? null, s.resolver?.country ?? null, s.resolver?.asn ?? null, s.resolver?.provider?.slice(0, 40) ?? null,
+      s.ecs?.subnet ?? null, s.ecs?.country ?? null, s.ecs?.asn ?? null, s.decision.entry, s.decision.reason, s.server])] : null,
     sum: report.summary.code,
     // Часовой пояс и язык подсказывают регион, когда все входы закрыты и IP неизвестен.
     ctx: [report.client?.timezone || null, report.client?.language || null, hostOf(report.client?.diagnosticOrigin)]};
@@ -388,12 +467,19 @@ export async function decodeShare(fragment) {
       const health = Array.isArray(row[2]) ? {verified: row[2][0] === 1, healthy: row[2][1] === 1 ? true : row[2][1] === 0 ? false : null} : undefined;
       return {...target, attempts, ...(health ? {health} : {})};
     });
+    let dnsResolverShared = null;
+    if (Array.isArray(s.rs) && ['found', 'not_seen', 'unreachable'].includes(s.rs[0])) {
+      dnsResolverShared = {status: s.rs[0], seen: s.rs.slice(1, 5).filter(Array.isArray).map(r => cleanResolverRow({
+        resolver: {ip: r[0], country: r[1], asn: r[2], provider: r[3]},
+        ecs: r[4] ? {subnet: r[4], country: r[5], asn: r[6]} : null, basis: r[4] ? 'ecs' : 'resolver',
+        decision: {entry: r[7], reason: r[8]}, server: r[9]}))};
+    }
     const ctx = Array.isArray(s.ctx) ? s.ctx : [];
     const context = {timezone: typeof ctx[0] === 'string' && /^[A-Za-z0-9_+\/-]{1,64}$/.test(ctx[0]) ? ctx[0] : null,
       language: typeof ctx[1] === 'string' && /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/.test(ctx[1]) ? ctx[1] : null,
       openedOn: typeof ctx[2] === 'string' && /^[a-z0-9.-]{1,100}$/.test(ctx[2]) ? ctx[2] : null};
     return {shared: true, reportId: str(s.id, 64) || '?', finishedAt: str(s.at, 40) || '', toolVersion: str(s.tool, 20) || '?',
-      network, recognition: {byAddress, byDns}, entries, checks, context, summary: summarize(checks, entries)};
+      network, recognition: {byAddress, byDns}, entries, checks, context, dnsResolver: dnsResolverShared, summary: summarize(checks, entries)};
   } catch (_) {
     return null;
   }

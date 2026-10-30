@@ -49,6 +49,7 @@ h2{font-size:1.5rem;letter-spacing:-.035em;font-weight:700;margin:0}
 .tile{background:var(--card);border:1px solid var(--border-soft);border-radius:16px;padding:var(--s5)}
 .tile .dot.running{background:var(--foreground)}.tile-top{display:flex;justify-content:space-between;align-items:center;gap:var(--s3)}
 .tile-name{font-weight:600;font-size:var(--base);letter-spacing:-.02em}.tile-ms{font:600 1.75rem/1 var(--sans);letter-spacing:-.04em;margin-top:var(--s4)}.tile-ms small{font-size:var(--sm);font-weight:500;color:var(--muted-foreground);margin-left:2px}
+.resolver-tiles{grid-template-columns:repeat(2,minmax(0,1fr))}.resolver-note{margin:var(--s3) 0 0;font-size:var(--xs);color:var(--muted-foreground)}
 .tile-sub{margin-top:var(--s2);font:var(--xs)/1.5 var(--mono);color:var(--muted-foreground);overflow-wrap:anywhere}
 .scroll{overflow:auto;border:1px solid var(--border-soft);border-radius:16px;background:var(--card)}
 table{width:100%;border-collapse:collapse}th{font:500 var(--xs)/1 var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted-foreground);text-align:left;padding:var(--s4)}td{padding:var(--s3) var(--s4);border-top:1px solid var(--border-soft)}
@@ -75,7 +76,7 @@ pre{font:var(--xs)/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;b
 footer{padding-block:var(--s10) var(--s8);color:var(--muted-foreground);font-size:var(--xs);display:flex;justify-content:space-between;gap:var(--s4);flex-wrap:wrap}
 @keyframes pulse{50%{opacity:.35}}
 @media(prefers-reduced-motion:reduce){.dot.running{animation:none}.progress-fill,.run{transition:none}}
-@media(max-width:860px){.route{grid-template-columns:repeat(2,minmax(0,1fr))}.hop:nth-child(2)::after{display:none}.tiles{grid-template-columns:1fr}}
+@media(max-width:860px){.route{grid-template-columns:repeat(2,minmax(0,1fr))}.hop:nth-child(2)::after{display:none}.tiles,.resolver-tiles{grid-template-columns:1fr}}
 @media(max-width:560px){.shell{padding-inline:var(--s4)}.hero{padding:var(--s8) var(--s5) var(--s6);border-radius:20px}.route{grid-template-columns:1fr 1fr;gap:var(--s2);margin-top:var(--s6)}.hop{min-height:0;padding:var(--s3) var(--s4)}.hop::after{display:none}.hop .main{font-size:var(--base)}.hero-top{grid-template-columns:1fr}.hero-text{min-height:0}.run{width:100%;order:-1}.links{display:none}.actions{flex-direction:column}.button{justify-content:center}}
 @media print{.hero{background:none;color:inherit;border:1px solid #ccc}.run,.actions,.manual{display:none}}
 </style>
@@ -111,6 +112,11 @@ footer{padding-block:var(--s10) var(--s8);color:var(--muted-foreground);font-siz
 <div class="block-head"><h2 id="entries-title">Входы</h2><span class="badge">каждый напрямую</span></div>
 <div class="tiles" id="entries"></div>
 </section>
+<section class="block" aria-labelledby="resolver-title" id="resolver-block" hidden>
+<div class="block-head"><h2 id="resolver-title">Ваш DNS-сервер</h2><span class="badge">по нему DNS выбирает вход</span></div>
+<div class="tiles resolver-tiles" id="resolvers"></div>
+<p class="resolver-note" id="resolver-note"></p>
+</section>
 <section class="block" aria-labelledby="results-title">
 <div class="block-head"><h2 id="results-title">Сервисы</h2><span class="badge" id="count">5 адресов · по 2 запроса</span></div>
 <div class="scroll"><table><thead><tr><th scope="col">Сервис</th><th scope="col">Ответ</th><th scope="col">Время</th></tr></thead><tbody id="results"></tbody></table></div>
@@ -129,6 +135,6 @@ footer{padding-block:var(--s10) var(--s8);color:var(--muted-foreground);font-siz
 </main>
 <footer><span>Layero · network-check</span><span>Только про ваше подключение</span></footer>
 </div>
-<script type="module" src="assets/app.mjs?v=5.4.0"></script>
+<script type="module" src="assets/app.mjs?v=5.5.0"></script>
 </body>
 </html>

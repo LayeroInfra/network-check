@@ -1,8 +1,8 @@
 // Measurement model. No DOM, cookies, account credentials or automatic upload.
-import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.5.0';
-import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.5.0';
+import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.5.1';
+import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.5.1';
 export {LAUNCH_COMMANDS, RU_ENTRY, ABROAD_ENTRY};
-export const VERSION = '5.5.0';
+export const VERSION = '5.5.1';
 export const ATTEMPTS = 2;
 export const TIMEOUT_MS = 12000;
 export const NETWORK_PATH = '/__layero/network-info';

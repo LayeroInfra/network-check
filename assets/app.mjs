@@ -1,4 +1,4 @@
-import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX, entryText, hostText, reasonText} from './diagnostics.mjs?v=5.5.0';
+import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX, entryText, hostText, reasonText} from './diagnostics.mjs?v=5.5.1';
 
 const $ = id => document.getElementById(id);
 let lastReport = null;
@@ -93,13 +93,25 @@ function countryName(code) {
 }
 
 // Какой DNS-сервер спросил наше имя и куда его по правилу отправляет GeoDNS.
+// Компьютер может спрашивать несколько DNS-серверов сразу (Google и Cloudflare),
+// и они ведут в разные входы. Факт — вход, через который реально пришёл
+// браузер (byDns); подпись строится от него, а не от первой записи.
+const VERDICT_ENTRY = {ru: 'ru6', abroad: 'uz'};
+function factRow(report) {
+  const seen = report.dnsResolver?.status === 'found' ? report.dnsResolver.seen : [];
+  const want = VERDICT_ENTRY[report.recognition.byDns.verdict];
+  return seen.find(s => s.decision.entry === want) || null;
+}
+function resolverName(s) { return s.resolver?.provider || s.resolver?.ip || 'DNS-сервер'; }
+function resolverPlace(s) { return s.ecs ? 'подсеть ' + countryName(s.ecs.country) : countryName(s.resolver?.country); }
+
 function renderResolver(report) {
   const r = report.dnsResolver;
   $('resolver-block').hidden = !r;
   if (!r) return;
   $('resolvers').replaceChildren();
-  const first = r.seen?.[0];
-  $('dns-sub').textContent = first ? (first.resolver?.provider || first.resolver?.ip || 'DNS-сервер') + ' · ' + (first.ecs ? 'подсеть ' + (first.ecs.country || '?') : countryName(first.resolver?.country)) : 'куда ведут сайты';
+  const fact = factRow(report) || r.seen?.[0];
+  $('dns-sub').textContent = fact ? resolverName(fact) + ' · ' + resolverPlace(fact) : 'куда ведут сайты';
   if (r.status !== 'found') {
     $('resolver-note').textContent = r.status === 'unreachable' ? 'Не узнали: ни один вход Layero не открылся.' : 'Наш сервер имён запроса не получил — DNS мог ответить из кэша или не дошёл до нас.';
     return;
@@ -108,28 +120,35 @@ function renderResolver(report) {
     const tile = el('div', 'tile');
     const top = el('div', 'tile-top');
     const tone = s.decision.entry === 'uz' ? 'success' : 'warning';
-    top.append(el('span', 'tile-name', s.resolver?.provider || 'DNS-сервер'), statusCell(tone, entryText(s.decision.entry)));
+    top.append(el('span', 'tile-name', resolverName(s)), statusCell(tone, entryText(s.decision.entry)));
     tile.append(top, el('div', 'tile-ms', countryName(s.ecs ? s.ecs.country : s.resolver?.country)),
       el('div', 'tile-sub', 'сервер ' + hostText(s.resolver) + (s.ecs ? ' · передал вашу подсеть ' + hostText({...s.ecs, ip: null}) : ' · вашу подсеть не передал')),
       el('div', 'tile-sub', (s.ecs ? 'по подсети: ' : 'по DNS-серверу: ') + reasonText(s.decision.reason)));
     $('resolvers').append(tile);
   }
-  $('resolver-note').textContent = r.seen.length > 1 ? 'Сервер спрашивал с нескольких адресов — вход может меняться от запроса к запросу.' : '';
+  const entries = new Set(r.seen.map(s => s.decision.entry));
+  $('resolver-note').textContent = entries.size > 1
+    ? 'Компьютер спрашивает несколько DNS-серверов, и они ведут в разные входы. Какой ответит первым — туда и пойдёт браузер, поэтому вход может меняться от раза к разу.'
+    : r.seen.length > 1 ? 'Сервер спрашивал с нескольких адресов.' : '';
 }
 
 function resolverMismatch(report) {
   const r = report.dnsResolver; const n = report.network || {};
-  const s = r?.status === 'found' ? r.seen[0] : null;
-  if (!s) return '';
-  const toRu = s.decision.entry === 'ru6';
-  if (toRu && report.recognition.byAddress.verdict === 'abroad') {
-    return 'Ваш DNS-сервер — ' + (s.resolver?.provider || s.resolver?.ip) + ' (' + countryName(s.ecs ? s.ecs.country : s.resolver?.country) + '). ' +
-      'По нему GeoDNS считает вас Россией и ведёт в Москву, а трафик выходит в интернет в другой стране: ' + countryName(n.countryCode) +
-      (n.provider ? ' (' + n.provider + ')' : '') + '. Так бывает с VPN, который пускает DNS мимо себя. ' +
-      (report.entries?.find(e => e.id === 'ru6')?.reachable === false ? 'Из вашей сети вход в Москве закрыт — поэтому сервисы не открываются.' : '');
+  if (r?.status !== 'found') return '';
+  const dns = report.recognition.byDns.verdict;
+  const addr = report.recognition.byAddress.verdict;
+  const toMoscow = r.seen.filter(s => s.decision.entry === 'ru6');
+  // Факт: DNS привёл в Москву (или вход по DNS не открылся, а DNS-сервер ведёт в Москву), а трафик выходит за рубежом.
+  if (addr === 'abroad' && toMoscow.length && (dns === 'ru' || dns === 'failed')) {
+    const s = toMoscow[0];
+    return 'Ваш DNS-сервер — ' + resolverName(s) + ' (' + resolverPlace(s) + '). По нему GeoDNS считает вас Россией и ведёт в Москву, ' +
+      'а трафик выходит в интернет в другой стране: ' + countryName(n.countryCode) + (n.provider ? ' (' + n.provider + ')' : '') +
+      '. Так бывает с VPN, который пускает DNS мимо себя.' +
+      (report.entries?.find(e => e.id === 'ru6')?.reachable === false ? ' Из вашей сети вход в Москве закрыт — поэтому сервисы не открываются.' : '');
   }
-  if (!toRu && report.recognition.byAddress.verdict === 'ru') {
-    return 'Ваш DNS-сервер — ' + (s.resolver?.provider || s.resolver?.ip) + ' (' + countryName(s.resolver?.country) + ') не передаёт вашу подсеть, поэтому GeoDNS ведёт вас как иностранца в Ташкент.';
+  if (addr === 'ru' && dns === 'abroad') {
+    const s = factRow(report);
+    if (s) return 'Ваш DNS-сервер — ' + resolverName(s) + ' (' + resolverPlace(s) + ') — находится за рубежом и не передаёт вашу подсеть, поэтому GeoDNS ведёт вас как иностранца в Ташкент.';
   }
   return '';
 }

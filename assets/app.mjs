@@ -1,4 +1,4 @@
-import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX, entryText, hostText, reasonText} from './diagnostics.mjs?v=5.5.1';
+import {TARGETS, ATTEMPTS, ENTRIES, diagnose, checkState, serializeReport, getLaunchCommands, textSummary, entryName, encodeShare, decodeShare, SHARE_PREFIX, entryText, hostText, reasonText} from './diagnostics.mjs?v=5.5.2';
 
 const $ = id => document.getElementById(id);
 let lastReport = null;
@@ -96,11 +96,11 @@ function countryName(code) {
 // Компьютер может спрашивать несколько DNS-серверов сразу (Google и Cloudflare),
 // и они ведут в разные входы. Факт — вход, через который реально пришёл
 // браузер (byDns); подпись строится от него, а не от первой записи.
-const VERDICT_ENTRY = {ru: 'ru6', abroad: 'uz'};
+const VERDICT_ENTRY = {ru: ['ru6', 'both'], abroad: ['uz']};
 function factRow(report) {
   const seen = report.dnsResolver?.status === 'found' ? report.dnsResolver.seen : [];
-  const want = VERDICT_ENTRY[report.recognition.byDns.verdict];
-  return seen.find(s => s.decision.entry === want) || null;
+  const want = VERDICT_ENTRY[report.recognition.byDns.verdict] || [];
+  return seen.find(s => want.includes(s.decision.entry)) || null;
 }
 function resolverName(s) { return s.resolver?.provider || s.resolver?.ip || 'DNS-сервер'; }
 function resolverPlace(s) { return s.ecs ? 'подсеть ' + countryName(s.ecs.country) : countryName(s.resolver?.country); }
@@ -119,7 +119,7 @@ function renderResolver(report) {
   for (const s of r.seen) {
     const tile = el('div', 'tile');
     const top = el('div', 'tile-top');
-    const tone = s.decision.entry === 'uz' ? 'success' : 'warning';
+    const tone = 'success';   // вход по правилу — не ошибка; расхождение объясняет плашка выше
     top.append(el('span', 'tile-name', resolverName(s)), statusCell(tone, entryText(s.decision.entry)));
     tile.append(top, el('div', 'tile-ms', countryName(s.ecs ? s.ecs.country : s.resolver?.country)),
       el('div', 'tile-sub', 'сервер ' + hostText(s.resolver) + (s.ecs ? ' · передал вашу подсеть ' + hostText({...s.ecs, ip: null}) : ' · вашу подсеть не передал')),

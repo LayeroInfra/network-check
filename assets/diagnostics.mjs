@@ -1,8 +1,8 @@
 // Measurement model. No DOM, cookies, account credentials or automatic upload.
-import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.5.1';
-import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.5.1';
+import {LAUNCH_COMMANDS} from './launch-commands.mjs?v=5.5.2';
+import {RU_ENTRY, ABROAD_ENTRY, RU_ASNS} from './ru-asns.mjs?v=5.5.2';
 export {LAUNCH_COMMANDS, RU_ENTRY, ABROAD_ENTRY};
-export const VERSION = '5.5.1';
+export const VERSION = '5.5.2';
 export const ATTEMPTS = 2;
 export const TIMEOUT_MS = 12000;
 export const NETWORK_PATH = '/__layero/network-info';
@@ -86,7 +86,7 @@ export async function checkEntries(reportId, options = {}) {
 // Запись забирается через любой открывшийся вход: /__layero/dns-seen?t=…
 export const DNS_SEEN_ZONE = 'dnsseen.layero.app';
 export const DNS_SEEN_PATH = '/__layero/dns-seen';
-const ENTRY_KEYS = ['ru6', 'uz'];
+const ENTRY_KEYS = ['ru6', 'uz', 'both'];   // both — Москва первой, Ташкент запасным
 const REASONS = ['country_unknown', 'country_ru', 'asn_ru', 'country_abroad'];
 
 function dnsToken() {
@@ -350,7 +350,7 @@ export function serializeReport(report) { return JSON.stringify(report, null, 2)
 const VERDICT_TEXT = {ru: 'Россия', abroad: 'не Россия', failed: 'не удалось', unknown: 'не определено'};
 const REASON_TEXT = {country_unknown: 'страна не определена — считаем Россией', country_ru: 'страна сети — Россия',
   asn_ru: 'сеть зарегистрирована в России', country_abroad: 'страна сети не Россия, сеть не российская'};
-const ENTRY_TEXT = {ru6: 'вход в России', uz: 'зарубежный вход'};
+const ENTRY_TEXT = {ru6: 'вход в России', uz: 'зарубежный вход', both: 'Москва, запасной Ташкент'};
 export const entryText = entry => ENTRY_TEXT[entry] || 'вход ?';
 export function hostText(h) {
   if (!h) return '?';
